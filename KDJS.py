@@ -8,12 +8,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 def main():
-    # 从环境变量读取凭据
-    username = os.getenv('CHINADSL_USERNAME')
-    password = os.getenv('CHINADSL_PASSWORD')
-    
-    if not username or not password:
-        print("错误: 未设置用户名或密码环境变量。")
+    # 从环境变量读取Cookie
+    cookie_str = os.getenv('CHINADSL_COOKIE')
+    if not cookie_str:
+        print("错误: 未设置Cookie环境变量。")
         return
 
     # 配置Chrome选项
@@ -27,57 +25,28 @@ def main():
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        # === 第一步：直接访问登录页面 ===
-        login_url = "https://www.chinadsl.net/member.php?mod=logging&action=login"
-        driver.get(login_url)
-        print("已访问登录页面")
+        # 首先访问网站首页以设置Cookie
+        driver.get("https://www.chinadsl.net/")
+        # 清除所有现有Cookie，避免干扰
+        driver.delete_all_cookies()
+        # 将Cookie字符串拆分成单个Cookie并添加
+        cookies = cookie_str.split(';')
+        for cookie in cookies:
+            cookie = cookie.strip()
+            if '=' in cookie:
+                name, value = cookie.split('=', 1)
+                driver.add_cookie({
+                    'name': name,
+                    'value': value,
+                    'domain': '.chinadsl.net'
+                })
+        
+        # 刷新页面，使Cookie生效
+        driver.refresh()
         time.sleep(3)
 
-        # === 第二步：填写登录表单 ===
-        print("开始填写登录表单...")
-        
-        # 用户名输入框
-        try:
-            username_field = driver.find_element(By.NAME, "username")
-            username_field.clear()
-            username_field.send_keys(username)
-            print("✓ 已输入用户名")
-        except Exception as e:
-            print(f"❌ 无法找到用户名输入框: {e}")
-            return
-
-        # 密码输入框
-        try:
-            password_field = driver.find_element(By.NAME, "password")
-            password_field.clear()
-            password_field.send_keys(password)
-            print("✓ 已输入密码")
-        except Exception as e:
-            print(f"❌ 无法找到密码输入框: {e}")
-            return
-
-        # === 第三步：点击登录按钮 ===
-        try:
-            login_button = driver.find_element(By.NAME, "loginsubmit")
-            login_button.click()
-            print("✓ 已点击登录按钮")
-        except Exception as e:
-            print(f"❌ 无法找到登录按钮: {e}")
-            return
-
-        # 等待登录完成
-        print("等待登录完成...")
-        time.sleep(5)
-
-        # === 第四步：检查登录是否成功 ===
-        current_url = driver.current_url
-        if "logging" not in current_url and "login" not in current_url:
-            print("✓ 登录成功，已跳转到其他页面")
-        else:
-            print("⚠️ 可能登录失败，仍在登录页面")
-            return
-
-        # === 第五步：访问任务页面并等待按钮出现 ===
+        # 检查登录是否成功：通过查看页面中是否有用户信息或直接访问任务页面看是否跳转
+        # 这里我们直接尝试访问任务页面
         task_url = "https://www.chinadsl.net/home.php?mod=task&do=view&id=1"
         driver.get(task_url)
         print("已访问任务页面，等待立即申请按钮加载...")
@@ -85,7 +54,7 @@ def main():
         # 等待一段时间让页面加载和可能的延迟出现
         time.sleep(10)
 
-        # === 第六步：查找并点击立即申请按钮 ===
+        # 接下来的步骤与之前相同：查找并点击立即申请按钮
         print("查找立即申请按钮...")
         
         # 多种可能的选择器
@@ -109,7 +78,7 @@ def main():
                 print(f"按钮标题: {button_title}")
                 print(f"按钮onclick: {button_onclick}")
                 
-                # 检查按钮是否可用（根据您之前提供的HTML，按钮可能有状态提示）
+                # 检查按钮是否可用
                 if "后可以再次申请" in button_title or "后可以再次申请" in button_onclick:
                     print("⏰ 任务已完成，下次可申请时间请查看按钮标题提示")
                     return
@@ -146,7 +115,7 @@ def main():
             elif "已申请" in driver.page_source:
                 print("ℹ️ 页面提示已申请")
             elif "登录" in driver.page_source:
-                print("❌ 可能未登录成功，请检查凭证")
+                print("❌ 可能Cookie失效，请重新获取")
 
         # 保存截图用于调试
         timestamp = time.strftime("%Y%m%d_%H%M%S")
