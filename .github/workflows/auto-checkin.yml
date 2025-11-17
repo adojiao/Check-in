@@ -37,5 +37,5 @@ jobs:
       if: always()
       with:
         name: task-screenshots
-        path: "*.png"
+        path: "screenshots/*.png"
         retention-days: 3
