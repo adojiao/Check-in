@@ -21,42 +21,80 @@ def main():
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
     chrome_options.add_argument('--window-size=1920,1080')
+    # 设置User-Agent，模拟真实浏览器
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
 
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        # === 第一步：直接访问任务页面并设置Cookie ===
-        task_url = "https://www.chinadsl.net/home.php?mod=task&do=view&id=1"
-        driver.get("https://www.chinadsl.net/")  # 先访问首页设置Cookie
+        # === 第一步：先访问网站根域名 ===
+        print("正在访问网站首页...")
+        driver.get("https://www.chinadsl.net/")
+        time.sleep(3)
         
-        # 设置Cookie
+        # === 第二步：清除现有Cookie，然后设置新Cookie ===
+        driver.delete_all_cookies()
+        
+        # 解析Cookie字符串并逐个设置
         cookies = cookie_str.split(';')
         for cookie in cookies:
+            cookie = cookie.strip()
             if '=' in cookie:
-                name, value = cookie.strip().split('=', 1)
-                driver.add_cookie({
-                    'name': name,
-                    'value': value,
-                    'domain': '.chinadsl.net'
-                })
+                name, value = cookie.split('=', 1)
+                # 为每个Cookie设置完整的属性
+                cookie_dict = {
+                    'name': name.strip(),
+                    'value': value.strip(),
+                    'domain': '.chinadsl.net',
+                    'path': '/',
+                    'secure': False
+                }
+                try:
+                    driver.add_cookie(cookie_dict)
+                    print(f"✓ 设置Cookie: {name.strip()}")
+                except Exception as e:
+                    print(f"⚠️ 设置Cookie {name} 时出错: {e}")
         
         print("✓ Cookie设置完成")
         
-        # === 第二步：访问任务页面 ===
+        # === 第三步：刷新页面使Cookie生效 ===
+        driver.refresh()
+        time.sleep(3)
+        
+        # === 第四步：检查登录状态 ===
+        print("检查登录状态...")
+        
+        # 方法1：检查页面是否包含登录相关元素
+        page_source = driver.page_source
+        if "退出" in page_source or "退出登录" in page_source or "我的空间" in page_source:
+            print("✓ 登录状态验证成功")
+        elif "登录" in page_source and "注册" in page_source:
+            print("❌ 登录状态验证失败，仍显示登录注册链接")
+            # 保存截图用于调试
+            driver.save_screenshot("login_failed.png")
+            return
+        
+        # 方法2：尝试访问用户中心页面
+        print("访问用户中心验证登录状态...")
+        driver.get("https://www.chinadsl.net/home.php?mod=space")
+        time.sleep(3)
+        
+        if "登录" in driver.page_source and "注册" in driver.page_source:
+            print("❌ 无法访问用户中心，Cookie可能已失效")
+            driver.save_screenshot("cookie_invalid.png")
+            return
+        else:
+            print("✓ 用户中心访问成功，登录状态正常")
+
+        # === 第五步：访问任务页面 ===
+        task_url = "https://www.chinadsl.net/home.php?mod=task&do=view&id=1"
         driver.get(task_url)
         print("已访问任务页面，等待立即申请按钮加载...")
         
         # 等待一段时间让页面加载
         time.sleep(10)
 
-        # === 第三步：检查是否已登录 ===
-        if "登录" in driver.page_source and "注册" in driver.page_source:
-            print("❌ Cookie可能已失效，需要重新获取")
-            return
-
-        print("✓ 已通过Cookie登录")
-
-        # === 第四步：查找并点击立即申请按钮 ===
+        # === 第六步：查找并点击立即申请按钮 ===
         print("查找立即申请按钮...")
         
         # 多种可能的选择器
@@ -74,9 +112,11 @@ def main():
                 print(f"✓ 找到立即申请按钮 - 使用选择器: {selector}")
                 
                 # 获取按钮状态信息
+                button_text = apply_button.text
                 button_title = apply_button.get_attribute("title") or ""
                 button_onclick = apply_button.get_attribute("onclick") or ""
                 
+                print(f"按钮文本: {button_text}")
                 print(f"按钮标题: {button_title}")
                 print(f"按钮onclick: {button_onclick}")
                 
@@ -86,7 +126,7 @@ def main():
                     return
                 
                 # 尝试点击按钮
-                driver.execute_script("arguments[0].scrollIntoView();", apply_button)
+                driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", apply_button)
                 time.sleep(2)
                 apply_button.click()
                 print("✓ 已点击立即申请按钮")
@@ -111,16 +151,16 @@ def main():
         
         if not apply_button:
             print("❌ 未找到立即申请按钮")
-            # 检查页面是否有其他提示信息
-            if "任务已完成" in driver.page_source:
-                print("ℹ️ 页面提示任务已完成")
-            elif "已申请" in driver.page_source:
-                print("ℹ️ 页面提示已申请")
+            # 保存当前页面截图和源代码用于调试
+            driver.save_screenshot("no_button_found.png")
+            with open("page_source.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            print("已保存页面截图和源代码用于调试")
 
-        # 保存截图用于调试
+        # 保存最终截图
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        driver.save_screenshot(f"task_result_{timestamp}.png")
-        print(f"已保存任务页面截图: task_result_{timestamp}.png")
+        driver.save_screenshot(f"final_result_{timestamp}.png")
+        print(f"已保存最终截图: final_result_{timestamp}.png")
 
     except Exception as e:
         print(f"❌ 自动化过程出现错误: {str(e)}")
