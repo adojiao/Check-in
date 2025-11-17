@@ -25,36 +25,38 @@ def main():
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        # 首先访问网站首页以设置Cookie
-        driver.get("https://www.chinadsl.net/")
-        # 清除所有现有Cookie，避免干扰
-        driver.delete_all_cookies()
-        # 将Cookie字符串拆分成单个Cookie并添加
+        # === 第一步：直接访问任务页面并设置Cookie ===
+        task_url = "https://www.chinadsl.net/home.php?mod=task&do=view&id=1"
+        driver.get("https://www.chinadsl.net/")  # 先访问首页设置Cookie
+        
+        # 设置Cookie
         cookies = cookie_str.split(';')
         for cookie in cookies:
-            cookie = cookie.strip()
             if '=' in cookie:
-                name, value = cookie.split('=', 1)
+                name, value = cookie.strip().split('=', 1)
                 driver.add_cookie({
                     'name': name,
                     'value': value,
                     'domain': '.chinadsl.net'
                 })
         
-        # 刷新页面，使Cookie生效
-        driver.refresh()
-        time.sleep(3)
-
-        # 检查登录是否成功：通过查看页面中是否有用户信息或直接访问任务页面看是否跳转
-        # 这里我们直接尝试访问任务页面
-        task_url = "https://www.chinadsl.net/home.php?mod=task&do=view&id=1"
+        print("✓ Cookie设置完成")
+        
+        # === 第二步：访问任务页面 ===
         driver.get(task_url)
         print("已访问任务页面，等待立即申请按钮加载...")
         
-        # 等待一段时间让页面加载和可能的延迟出现
+        # 等待一段时间让页面加载
         time.sleep(10)
 
-        # 接下来的步骤与之前相同：查找并点击立即申请按钮
+        # === 第三步：检查是否已登录 ===
+        if "登录" in driver.page_source and "注册" in driver.page_source:
+            print("❌ Cookie可能已失效，需要重新获取")
+            return
+
+        print("✓ 已通过Cookie登录")
+
+        # === 第四步：查找并点击立即申请按钮 ===
         print("查找立即申请按钮...")
         
         # 多种可能的选择器
@@ -114,8 +116,6 @@ def main():
                 print("ℹ️ 页面提示任务已完成")
             elif "已申请" in driver.page_source:
                 print("ℹ️ 页面提示已申请")
-            elif "登录" in driver.page_source:
-                print("❌ 可能Cookie失效，请重新获取")
 
         # 保存截图用于调试
         timestamp = time.strftime("%Y%m%d_%H%M%S")
