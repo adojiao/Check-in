@@ -28,8 +28,7 @@ jobs:
 
     - name: Run auto task script
       env:
-        CHINADSL_USERNAME: ${{ secrets.CHINADSL_USERNAME }}
-        CHINADSL_PASSWORD: ${{ secrets.CHINADSL_PASSWORD }}
+        CHINADSL_COOKIE: ${{ secrets.CHINADSL_COOKIE }}
       run: python KDJS.py
 
     - name: Upload screenshots
