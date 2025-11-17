@@ -1,0 +1,38 @@
+name: ChinaDSL Auto Task Application
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天UTC时间2:00运行（北京时间10:00）
+  workflow_dispatch:      # 允许手动触发
+
+jobs:
+  apply-task:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        pip install selenium
+        sudo apt-get update
+        sudo apt-get install -y chromium-chromedriver
+
+    - name: Run auto task script
+      env:
+        CHINADSL_USERNAME: ${{ secrets.CHINADSL_USERNAME }}
+        CHINADSL_PASSWORD: ${{ secrets.CHINADSL_PASSWORD }}
+      run: python KDJS.py
+
+    - name: Upload screenshots
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: task-screenshots
+        path: "*.png"
+        retention-days: 3
